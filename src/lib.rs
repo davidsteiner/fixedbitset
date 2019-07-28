@@ -215,12 +215,18 @@ impl FixedBitSet
     /// Iterator element is the index of the `1` bit, type `usize`.
     #[inline]
     pub fn ones(&self) -> Ones {
-        match self.as_slice().split_first() {
+        self.ones_after(0)
+    }
+
+    #[inline]
+    pub fn ones_after(&self, bit: usize) -> Ones {
+        let (block_index, i) = div_rem(bit, BITS);
+        match self.as_slice()[block_index..].split_first() {
             Some((&block, rem)) => {
                 Ones {
-                    current_bit_idx: 0,
-                    current_block_idx: 0,
-                    current_block: block,
+                    current_bit_idx: bit,
+                    current_block_idx: block_index,
+                    current_block: block >> i,
                     remaining_blocks: rem
                 }
             }
@@ -233,6 +239,11 @@ impl FixedBitSet
                 }
             }
         }
+    }
+
+    #[inline]
+    pub fn next_set_bit(&self, bit: usize) -> Option<usize> {
+        self.ones_after(bit).next()
     }
 
     /// Returns a lazy iterator over the intersection of two `FixedBitSet`s
@@ -756,6 +767,55 @@ fn ones() {
     let ones: Vec<_> = fb.ones().collect();
 
     assert_eq!(vec![7, 11, 12, 35, 40, 50, 77, 95, 99], ones);
+}
+
+#[test]
+fn ones_after() {
+    let mut fb = FixedBitSet::with_capacity(100);
+    fb.set(7, true);
+    fb.set(11, true);
+    fb.set(12, true);
+    fb.set(35, true);
+    fb.set(40, true);
+    fb.set(50, true);
+    fb.set(77, true);
+    fb.set(95, true);
+    fb.set(99, true);
+
+    let ones: Vec<_> = fb.ones_after(77).collect();
+    assert_eq!(vec![77, 95, 99], ones);
+
+    let ones: Vec<_> = fb.ones_after(41).collect();
+    assert_eq!(vec![50, 77, 95, 99], ones);
+}
+
+#[test]
+fn next_set_bit() {
+    let mut fb = FixedBitSet::with_capacity(100);
+    fb.set(7, true);
+    fb.set(11, true);
+    fb.set(12, true);
+    fb.set(35, true);
+    fb.set(40, true);
+    fb.set(50, true);
+    fb.set(77, true);
+    fb.set(95, true);
+    fb.set(99, true);
+
+    let bit = fb.next_set_bit(0);
+    assert_eq!(Some(7), bit);
+
+    let bit = fb.next_set_bit(7);
+    assert_eq!(Some(7), bit);
+
+    let bit = fb.next_set_bit(54);
+    assert_eq!(Some(77), bit);
+
+    let bit = fb.next_set_bit(99);
+    assert_eq!(Some(99), bit);
+
+    let bit = fb.next_set_bit(100);
+    assert_eq!(None, bit);
 }
 
 #[test]
